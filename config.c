@@ -43,10 +43,14 @@
 #include "bti.h"
 
 typedef int (*config_function_callback)(struct session *session, char *value);
+typedef int (*defined_value_callback)(struct session *session);
+typedef int (*cpy_value_callback)(struct session *a, struct session* b);
 
 struct config_function {
-	const char *key;
-	config_function_callback callback;
+      const char *key;
+      config_function_callback callback;
+      defined_value_callback defined;
+      cpy_value_callback cpy;
 };
 
 /*
@@ -171,54 +175,144 @@ static int account_callback(struct session *session, char *value)
 	return session_string(&session->account, value);
 }
 
+static int account_defined(struct session * session) 
+{
+      return session->account != 0;
+}
+static int account_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->account, a->account);
+}
+
+
 static int password_callback(struct session *session, char *value)
 {
 	return session_string(&session->password, value);
+}
+static int password_defined(struct session * session) 
+{
+      return session->password != 0;
+}
+static int password_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->password, a->password);
 }
 
 static int proxy_callback(struct session *session, char *value)
 {
 	return session_string(&session->proxy, value);
 }
+static int proxy_defined(struct session * session) 
+{
+      return session->proxy != 0;
+}
+static int proxy_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->proxy, a->proxy);
+}
 
 static int user_callback(struct session *session, char *value)
 {
 	return session_string(&session->user, value);
+}
+static int user_defined(struct session * session) 
+{
+      return session->user != 0;
+}
+static int user_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->user, a->user);
 }
 
 static int consumer_key_callback(struct session *session, char *value)
 {
 	return session_string(&session->consumer_key, value);
 }
+static int consumer_key_defined(struct session * session) 
+{
+      return session->consumer_key != 0;
+}
+static int consumer_key_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->consumer_key, a->consumer_key);
+}
 
 static int consumer_secret_callback(struct session *session, char *value)
 {
 	return session_string(&session->consumer_secret, value);
+}
+static int consumer_secret_defined(struct session * session) 
+{
+      return session->consumer_secret != 0;
+}
+static int consumer_secret_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->consumer_secret, a->consumer_secret);
 }
 
 static int access_token_key_callback(struct session *session, char *value)
 {
 	return session_string(&session->access_token_key, value);
 }
+static int access_token_key_defined(struct session * session) 
+{
+      return session->access_token_key != 0;
+}
+static int access_token_key_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->access_token_key, a->access_token_key);
+}
 
 static int access_token_secret_callback(struct session *session, char *value)
 {
 	return session_string(&session->access_token_secret, value);
+}
+static int access_token_secret_defined(struct session * session) 
+{
+      return session->access_token_secret != 0;
+}
+static int access_token_secret_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->access_token_secret, a->access_token_secret);
 }
 
 static int logfile_callback(struct session *session, char *value)
 {
 	return session_string(&session->logfile, value);
 }
+static int logfile_defined(struct session * session) 
+{
+      return session->logfile != 0;
+}
+static int logfile_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->logfile, a->logfile);
+}
 
 static int replyto_callback(struct session *session, char *value)
 {
 	return session_string(&session->replyto, value);
 }
+static int replyto_defined(struct session * session) 
+{
+      return session->replyto != 0;
+}
+static int replyto_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->replyto, a->replyto);
+}
 
 static int retweet_callback(struct session *session, char *value)
 {
 	return session_string(&session->retweet, value);
+}
+static int retweet_defined(struct session * session) 
+{
+      return session->retweet != 0;
+}
+static int retweet_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->retweet, a->retweet);
 }
 
 static int host_callback(struct session *session, char *value)
@@ -237,6 +331,16 @@ static int host_callback(struct session *session, char *value)
 		session->hostname = strdup(value);
 	}
 	return 0;
+}
+static int host_defined(struct session * session) 
+{
+      return session->hostname != 0;
+}
+static int host_cpy(struct session *a, struct session* b)
+{
+      b->host = a->host;
+      session_string(&b->hosturl, a->hosturl);
+      session_string(&b->hostname, a->hostname);
 }
 
 static int action_callback(struct session *session, char *value)
@@ -257,15 +361,47 @@ static int action_callback(struct session *session, char *value)
 		session->action= ACTION_UNKNOWN;
 	return 0;
 }
+static int action_defined(struct session * session) 
+{
+      return session->action != ACTION_UPDATE ||
+	    session->action != ACTION_UPDATE ||
+	    session->action != ACTION_FRIENDS ||
+	    session->action != ACTION_USER ||
+	    session->action != ACTION_PUBLIC ||
+	    session->action != ACTION_GROUP;
+}
+static int action_cpy(struct session* a, struct session* b)
+{
+      b->action = a->action;
+      return 0;
+}
 
 static int verbose_callback(struct session *session, char *value)
 {
 	return session_bool(&session->verbose, value);
 }
+static int verbose_defined(struct session * session) 
+{
+      return session->verbose != 0;
+}
+static int verbose_cpy(struct session* a, struct session* b)
+{
+      b->verbose = a->verbose;
+      return 0;
+}
 
 static int shrink_urls_callback(struct session *session, char *value)
 {
 	return session_bool(&session->shrink_urls, value);
+}
+static int shrink_urls_defined(struct session * session) 
+{
+      return session->shrink_urls != 0;
+}
+static int shrink_urls_cpy(struct session* a, struct session* b)
+{
+      b->shrink_urls = a->shrink_urls;
+      return 0;
 }
 
 /*
@@ -277,22 +413,22 @@ static int shrink_urls_callback(struct session *session, char *value)
  * Make sure the table is NULL terminated, otherwise bad things will happen.
  */
 static struct config_function config_table[] = {
-	{ "account", account_callback },
-	{ "password", password_callback },
-	{ "proxy", proxy_callback },
-	{ "user", user_callback },
-	{ "consumer_key", consumer_key_callback },
-	{ "consumer_secret", consumer_secret_callback },
-	{ "access_token_key", access_token_key_callback },
-	{ "access_token_secret", access_token_secret_callback },
-	{ "logfile", logfile_callback },
-	{ "replyto", replyto_callback },
-	{ "retweet", retweet_callback },
-	{ "host", host_callback },
-	{ "action", action_callback },
-	{ "verbose", verbose_callback },
-	{ "shrink-urls", shrink_urls_callback },
-	{ NULL, NULL }
+      { "account", account_callback, account_defined, account_cpy },
+      { "password", password_callback, password_defined, password_cpy },
+      { "proxy", proxy_callback, proxy_defined, proxy_cpy },
+      { "user", user_callback, user_defined, user_cpy },
+      { "consumer_key", consumer_key_callback, consumer_key_defined, consumer_key_cpy },
+      { "consumer_secret", consumer_secret_callback, consumer_secret_defined, consumer_secret_cpy },
+      { "access_token_key", access_token_key_callback, access_token_key_defined, access_token_key_cpy },
+      { "access_token_secret", access_token_secret_callback, access_token_secret_defined, access_token_secret_cpy },
+      { "logfile", logfile_callback, logfile_defined, logfile_cpy },
+      { "replyto", replyto_callback, replyto_defined, replyto_cpy },
+      { "retweet", retweet_callback, retweet_defined, retweet_cpy },
+      { "host", host_callback, host_defined, host_cpy },
+      { "action", action_callback, action_defined, action_cpy },
+      { "verbose", verbose_callback, verbose_defined, verbose_cpy },
+      { "shrink-urls", shrink_urls_callback, shrink_urls_defined, shrink_urls_cpy },
+      { NULL, NULL, NULL, NULL }
 };
 
 static void process_line(struct session *session, char *key, char *value)
@@ -321,7 +457,7 @@ static void process_line(struct session *session, char *key, char *value)
 	}
 }
 
-void bti_parse_configfile(struct session *session)
+struct session **bti_parse_configfile(struct session* session)
 {
 	FILE *config_file;
 	char *line = NULL;
@@ -331,14 +467,18 @@ void bti_parse_configfile(struct session *session)
 	size_t len = 0;
 	ssize_t n;
 	char *c;
-
+	struct session **accounts;
+	int ses_cnt = 1;
 	config_file = fopen(session->configfile, "r");
 
 	/* No error if file does not exist or is unreadable.  */
 	if (config_file == NULL)
 		return;
 
-	do {
+	accounts = malloc(2*sizeof(struct session*));
+	accounts[0] = session;
+
+	do { // parse all lines
 		n = getline(&line, &len, config_file);
 		if (n < 0)
 			break;
@@ -377,12 +517,57 @@ void bti_parse_configfile(struct session *session)
 
 		/* parse the line into a key and value pair */
 		get_key(session, c, &key, &value);
+		dbg("key,val %s,%s\n", key, value);
 
+		if (0 == strcmp(config_table[0].key, key)) {
+		      accounts = (struct session**)realloc(accounts, (ses_cnt + 2) * sizeof(struct session*));
+		      accounts[ses_cnt] = (struct session*) session_alloc();
+		      session = accounts[ses_cnt];
+		      ses_cnt++;
+		}
 		process_line(session, key, value);
 	} while (!feof(config_file));
+
+	accounts[ses_cnt] = 0;
+
 
 	/* Free buffer and close file.  */
 	free(line);
 	fclose(config_file);
+	return accounts;
 }
 
+/** update sessions from default (first) session un accaunts, overruled by cli_session
+ */
+void consolidate_config(struct session **accounts) 
+{
+      int i;
+      struct config_function* cf;
+
+      for (i = 1; accounts[i] != 0; i++) {
+	    for (cf = &(config_table[1]); cf->key != NULL;cf++)
+		  if(!cf->defined(accounts[i]) && cf->defined(accounts[0]))
+			cf->cpy(accounts[0], accounts[i]);
+	    // additional fields (TODO: might be missing some)
+	    if(!accounts[1]->time && accounts[0]->time)
+		  accounts[1]->time = strdup(accounts[0]->time);
+	    if(!accounts[1]->homedir && accounts[0]->homedir)
+		  accounts[1]->homedir = strdup(accounts[0]->homedir);
+	    if(!accounts[1]->configfile && accounts[0]->configfile)
+		  accounts[1]->configfile = strdup(accounts[0]->configfile);
+	    if(!accounts[1]->proxy && accounts[0]->proxy)
+		  accounts[1]->proxy = strdup(accounts[0]->proxy);
+      // ??int interactive;
+      }
+
+
+}
+
+
+void cpy_ovwrt_session(struct session* a, struct session* b)
+{
+      struct config_function* cf;
+      for (cf = &config_table[0]; cf->key != NULL; cf++ )
+	    if(cf->defined(a))
+		  cf->cpy(a, b);
+}

@@ -84,7 +84,12 @@ extern const char twitter_name[];
 extern const char identica_name[];
 extern int debug;
 
-extern void bti_parse_configfile(struct session *session);
+
+
+extern struct session **bti_parse_configfile(struct session* session);
+
+extern struct session *session_alloc(void);
+extern void cpy_ovwrt_session(struct session* a, struct session* b);
 
 #define dbg(format, arg...)						\
 	do {								\
@@ -95,3 +100,4 @@ extern void bti_parse_configfile(struct session *session);
 
 
 #endif
+

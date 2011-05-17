@@ -185,7 +185,7 @@ static void session_readline_cleanup(struct session *session)
 		dlclose(session->readline_handle);
 }
 
-static struct session *session_alloc(void)
+struct session *session_alloc(void)
 {
 	struct session *session;
 
@@ -1129,6 +1129,8 @@ static char *shrink_urls(char *text)
 	return text;
 }
 
+
+
 int main(int argc, char *argv[], char *envp[])
 {
 	static const struct option options[] = {
@@ -1154,7 +1156,9 @@ int main(int argc, char *argv[], char *envp[])
 		{ "retweet", 1, NULL, 'w' },
 		{ }
 	};
-	struct session *session;
+	struct session *session; // the defaults session
+	struct session *cli_session; // session for command line parameters
+	struct session **accounts; // all sessions as configured [0 is reference session]
 	pid_t child;
 	char *tweet;
 	static char password[80];
@@ -1170,7 +1174,7 @@ int main(int argc, char *argv[], char *envp[])
 
 	session = session_alloc();
 	if (!session) {
-		fprintf(stderr, "no more memory...\n");
+			fprintf(stderr, "no more memory...\n");
 		return -1;
 	}
 
@@ -1197,6 +1201,7 @@ int main(int argc, char *argv[], char *envp[])
 	session->configfile = zalloc(strlen(session->homedir) + strlen(config_file) + 7);
 	sprintf(session->configfile, "%s/%s", session->homedir, config_file);
 
+
 	/* Set environment variables first, before reading command line options
 	 * or config file values. */
 	http_proxy = getenv("http_proxy");
@@ -1207,7 +1212,11 @@ int main(int argc, char *argv[], char *envp[])
 		dbg("http_proxy = %s\n", session->proxy);
 	}
 
-	bti_parse_configfile(session);
+	
+	accounts = bti_parse_configfile(session);
+	consolidate_config(accounts);
+
+	cli_session = session_alloc();
 
 	while (1) {
 		option = getopt_long_only(argc, argv,
@@ -1220,124 +1229,124 @@ int main(int argc, char *argv[], char *envp[])
 			debug = 1;
 			break;
 		case 'V':
-			session->verbose = 1;
+			cli_session->verbose = 1;
 			break;
 		case 'a':
-			if (session->account)
-				free(session->account);
-			session->account = strdup(optarg);
-			dbg("account = %s\n", session->account);
+			if (cli_session->account)
+				free(cli_session->account);
+			cli_session->account = strdup(optarg);
+			dbg("account = %s\n", cli_session->account);
 			break;
 		case 'g':
 			page_nr = atoi(optarg);
 			dbg("page = %d\n", page_nr);
-			session->page = page_nr;
+			cli_session->page = page_nr;
 			break;
 		case 'r':
-			session->replyto = strdup(optarg);
-			dbg("in_reply_to_status_id = %s\n", session->replyto);
+			cli_session->replyto = strdup(optarg);
+			dbg("in_reply_to_status_id = %s\n", cli_session->replyto);
 			break;
 		case 'w':
-			session->retweet = strdup(optarg);
-			dbg("Retweet ID = %s\n", session->retweet);
+			cli_session->retweet = strdup(optarg);
+			dbg("Retweet ID = %s\n", cli_session->retweet);
 			break;
 		case 'p':
-			if (session->password)
-				free(session->password);
-			session->password = strdup(optarg);
-			dbg("password = %s\n", session->password);
+			if (cli_session->password)
+				free(cli_session->password);
+			cli_session->password = strdup(optarg);
+			dbg("password = %s\n", cli_session->password);
 			break;
 		case 'P':
-			if (session->proxy)
-				free(session->proxy);
-			session->proxy = strdup(optarg);
-			dbg("proxy = %s\n", session->proxy);
+			if (cli_session->proxy)
+				free(cli_session->proxy);
+			cli_session->proxy = strdup(optarg);
+			dbg("proxy = %s\n", cli_session->proxy);
 			break;
 		case 'A':
 			if (strcasecmp(optarg, "update") == 0)
-				session->action = ACTION_UPDATE;
+				cli_session->action = ACTION_UPDATE;
 			else if (strcasecmp(optarg, "friends") == 0)
-				session->action = ACTION_FRIENDS;
+				cli_session->action = ACTION_FRIENDS;
 			else if (strcasecmp(optarg, "user") == 0)
-				session->action = ACTION_USER;
+				cli_session->action = ACTION_USER;
 			else if (strcasecmp(optarg, "replies") == 0)
-				session->action = ACTION_REPLIES;
+				cli_session->action = ACTION_REPLIES;
 			else if (strcasecmp(optarg, "public") == 0)
-				session->action = ACTION_PUBLIC;
+				cli_session->action = ACTION_PUBLIC;
 			else if (strcasecmp(optarg, "group") == 0)
-				session->action = ACTION_GROUP;
+				cli_session->action = ACTION_GROUP;
 			else if (strcasecmp(optarg, "retweet") == 0)
-				session->action = ACTION_RETWEET;
+				cli_session->action = ACTION_RETWEET;
 			else
-				session->action = ACTION_UNKNOWN;
-			dbg("action = %d\n", session->action);
+				cli_session->action = ACTION_UNKNOWN;
+			dbg("action = %d\n", cli_session->action);
 			break;
 		case 'u':
-			if (session->user)
-				free(session->user);
-			session->user = strdup(optarg);
-			dbg("user = %s\n", session->user);
+			if (cli_session->user)
+				free(cli_session->user);
+			cli_session->user = strdup(optarg);
+			dbg("user = %s\n", cli_session->user);
 			break;
 
 		case 'G':
-			if (session->group)
-				free(session->group);
-			session->group = strdup(optarg);
-			dbg("group = %s\n", session->group);
+			if (cli_session->group)
+				free(cli_session->group);
+			cli_session->group = strdup(optarg);
+			dbg("group = %s\n", cli_session->group);
 			break;
 		case 'L':
-			if (session->logfile)
-				free(session->logfile);
-			session->logfile = strdup(optarg);
-			dbg("logfile = %s\n", session->logfile);
+			if (cli_session->logfile)
+				free(cli_session->logfile);
+			cli_session->logfile = strdup(optarg);
+			dbg("logfile = %s\n", cli_session->logfile);
 			break;
 		case 's':
-			session->shrink_urls = 1;
+			cli_session->shrink_urls = 1;
 			break;
 		case 'H':
-			if (session->hosturl)
-				free(session->hosturl);
-			if (session->hostname)
-				free(session->hostname);
+			if (cli_session->hosturl)
+				free(cli_session->hosturl);
+			if (cli_session->hostname)
+				free(cli_session->hostname);
 			if (strcasecmp(optarg, "twitter") == 0) {
-				session->host = HOST_TWITTER;
-				session->hosturl = strdup(twitter_host);
-				session->hostname = strdup(twitter_name);
+				cli_session->host = HOST_TWITTER;
+				cli_session->hosturl = strdup(twitter_host);
+				cli_session->hostname = strdup(twitter_name);
 			} else if (strcasecmp(optarg, "identica") == 0) {
-				session->host = HOST_IDENTICA;
-				session->hosturl = strdup(identica_host);
-				session->hostname = strdup(identica_name);
+				cli_session->host = HOST_IDENTICA;
+				cli_session->hosturl = strdup(identica_host);
+				cli_session->hostname = strdup(identica_name);
 			} else {
-				session->host = HOST_CUSTOM;
-				session->hosturl = strdup(optarg);
-				session->hostname = strdup(optarg);
+				cli_session->host = HOST_CUSTOM;
+				cli_session->hosturl = strdup(optarg);
+				cli_session->hostname = strdup(optarg);
 			}
-			dbg("host = %d\n", session->host);
+			dbg("host = %d\n", cli_session->host);
 			break;
 		case 'b':
-			session->bash = 1;
+			cli_session->bash = 1;
 			/* fall-through intended */
 		case 'B':
-			session->background = 1;
+			cli_session->background = 1;
 			break;
 		case 'c':
-			if (session->configfile)
-				free(session->configfile);
-			session->configfile = strdup(optarg);
-			dbg("configfile = %s\n", session->configfile);
+			if (cli_session->configfile)
+				free(cli_session->configfile);
+			cli_session->configfile = strdup(optarg);
+			dbg("configfile = %s\n", cli_session->configfile);
 
 			/*
 			 * read the config file now.  Yes, this could override
 			 * previously set options from the command line, but
 			 * the user asked for it...
 			 */
-			bti_parse_configfile(session);
+			bti_parse_configfile(cli_session);
 			break;
 		case 'h':
 			display_help();
 			goto exit;
 		case 'n':
-			session->dry_run = 1;
+			cli_session->dry_run = 1;
 			break;
 		case 'v':
 			display_version();
@@ -1348,7 +1357,28 @@ int main(int argc, char *argv[], char *envp[])
 		}
 	}
 
+	
+
+
+
+	// select session and apply defaults where appropriate
+	if (cli_session->account) {
+	      session = cli_session;
+	      int i;
+	      for(i = 1; accounts[i] != 0; i++) {
+		    if (0 == strcmp(accounts[i]->account, cli_session->account)) {
+			  session = accounts[i];  // todo check for host, ...
+			  break;
+		    }
+	      }
+	} else if (accounts[1] != 0)
+	      session = accounts[1];
+
+	// Overwrite session used below with commandline-parameters
+	cpy_ovwrt_session(cli_session, session);
+	
 	session_readline_init(session);
+
 	/*
 	 * Show the version to make it easier to determine what
 	 * is going on here
@@ -1356,35 +1386,37 @@ int main(int argc, char *argv[], char *envp[])
 	if (debug)
 		display_version();
 
+	
+
 	if (session->host == HOST_TWITTER) {
 		if (!session->consumer_key || !session->consumer_secret) {
 			if (session->action == ACTION_USER ||
-					session->action == ACTION_PUBLIC) {
-				/*
-				 * Some actions may still work without
-				 * authentication
-				 */
-				session->guest = 1;
+			    session->action == ACTION_PUBLIC) {
+			      /*
+			       * Some actions may still work without
+			       * authentication
+			       */
+			      session->guest = 1;
 			} else {
-				fprintf(stderr,
-						"Twitter no longer supports HTTP basic authentication.\n"
-						"Both consumer key, and consumer secret are required"
-						" for bti in order to behave as an OAuth consumer.\n");
-				goto exit;
+			      fprintf(stderr,
+				      "Twitter no longer supports HTTP basic authentication.\n"
+				      "Both consumer key, and consumer secret are required"
+				      " for bti in order to behave as an OAuth consumer.\n");
+			      goto exit;
 			}
 		}
 		if (session->action == ACTION_GROUP) {
-			fprintf(stderr, "Groups only work in Identi.ca.\n");
-			goto exit;
+		      fprintf(stderr, "Groups only work in Identi.ca.\n");
+		      goto exit;
 		}
 	} else {
 		if (!session->consumer_key || !session->consumer_secret)
 			session->no_oauth = 1;
 	}
-
+	
 	if (session->no_oauth) {
-		if (!session->account) {
-			fprintf(stdout, "Enter account for %s: ",
+	      if (!session->account) {
+		    fprintf(stdout, "Enter account for %s: ",
 				session->hostname);
 			session->account = session->readline(NULL);
 		}
@@ -1432,27 +1464,27 @@ int main(int argc, char *argv[], char *envp[])
 	}
 
 	if (session->action == ACTION_UPDATE) {
-		if (session->background || !session->interactive)
-			tweet = get_string_from_stdin();
-		else
-			tweet = session->readline("tweet: ");
-		if (!tweet || strlen(tweet) == 0) {
-			dbg("no tweet?\n");
-			return -1;
-		}
-
-		if (session->shrink_urls)
-			tweet = shrink_urls(tweet);
-
-		session->tweet = zalloc(strlen(tweet) + 10);
-		if (session->bash)
-			sprintf(session->tweet, "%c %s",
-				getuid() ? '$' : '#', tweet);
-		else
-			sprintf(session->tweet, "%s", tweet);
-
-		free(tweet);
-		dbg("tweet = %s\n", session->tweet);
+	      if (session->background || !session->interactive)
+		    tweet = get_string_from_stdin();
+	      else
+		    tweet = session->readline("tweet: ");
+	      if (!tweet || strlen(tweet) == 0) {
+		    dbg("no tweet?\n");
+		    return -1;
+	      }
+	      
+	      if (session->shrink_urls)
+		    tweet = shrink_urls(tweet);
+	      
+	      session->tweet = zalloc(strlen(tweet) + 10);
+	      if (session->bash)
+		    sprintf(session->tweet, "%c %s",
+			    getuid() ? '$' : '#', tweet);
+	      else
+		    sprintf(session->tweet, "%s", tweet);
+	      
+	      free(tweet);
+	      dbg("tweet = %s\n", session->tweet);
 	}
 
 	if (session->page == 0)
