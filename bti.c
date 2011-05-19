@@ -296,6 +296,14 @@ static void bti_output_line(struct session *session, xmlChar *user,
 		printf("[%s] %s\n", user, text);
 }
 
+/* A short kludge for debugging location tracking */
+static void bti_output_location_line(xmlChar* location) {
+      printf("\t location at (%s)\n", location);
+}
+static void bti_output_geoloc_line(xmlChar* location) {
+      printf("\tgeoloc at (%s)\n", location);
+}
+
 static void parse_statuses(struct session *session,
 			   xmlDocPtr doc, xmlNodePtr current)
 {
@@ -303,6 +311,8 @@ static void parse_statuses(struct session *session,
 	xmlChar *user = NULL;
 	xmlChar *created = NULL;
 	xmlChar *id = NULL;
+	xmlChar *location = NULL;
+	xmlChar *geoloc = NULL;
 	xmlNodePtr userinfo;
 
 	current = current->xmlChildrenNode;
@@ -321,11 +331,35 @@ static void parse_statuses(struct session *session,
 						if (user)
 							xmlFree(user);
 						user = xmlNodeListGetString(doc, userinfo->xmlChildrenNode, 1);
-					}
+					} else if ((!xmlStrcmp(userinfo->name, (const xmlChar *)"location"))) {
+					      if (location)
+						    xmlFree(location);
+					      location = xmlNodeListGetString(doc, userinfo->xmlChildrenNode, 1);
+					} 
 					userinfo = userinfo->next;
 				}
 			}
+			if (!xmlStrcmp(current->name, (const xmlChar *)"geo"))
+			      {
+				    dbg("geo found:\n");
+				    xmlNodePtr geop = current->xmlChildrenNode;
+				    while (geop != NULL) {
+					  dbg("geopointname: %s\n", geop->name); 
+					  if(!xmlStrcmp(geop->name, (const xmlChar *)"point")) {
+						if(geoloc)
+						      xmlFree(geoloc);
+						geoloc = xmlNodeListGetString(doc, geop->xmlChildrenNode, 1);
+						dbg("found geoloc: %s----\n", geoloc);
+					  }		
+					  geop = geop->next;
+				    }
+			      }
+			if (!xmlStrcmp(current->name, (const xmlChar *)"coordinates"))
+			      {				    
+				    dbg("coordinates: %s\n---coordinates---\n", xmlNodeListGetString(doc, current->xmlChildrenNode, 1));
+			      }
 
+			// output 
 			if (user && text && created && id) {
 				bti_output_line(session, user, id,
 						created, text);
@@ -337,6 +371,16 @@ static void parse_statuses(struct session *session,
 				text = NULL;
 				created = NULL;
 				id = NULL;
+			} 
+			if (location) {
+			      bti_output_location_line(location);
+			      xmlFree(location);
+			      location = 0;
+			}
+			if (geoloc) {
+			      bti_output_geoloc_line(geoloc);
+			      xmlFree(geoloc);
+			      geoloc = 0;
 			}
 		}
 		current = current->next;
