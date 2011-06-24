@@ -6,7 +6,7 @@ struct status {
       char *text;  // status text
       char *user;  // screen name
       char *created; // creation time
-      char *id; // user id
+      char *id; // message id
       char *location; // Descriptive Location
       char *geoloc; //geographic coordinates
 };

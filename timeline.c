@@ -186,7 +186,7 @@ static FILE* append_status_gpx(FILE* f, struct status* stat) {
 	    char **latlon = status_geoloc2latlon(stat);
 	    if (latlon) {
 		  wpt.desc = stat->text; 
-		  wpt.name = stat->user;
+		  wpt.name = stat->user; 
 		  wpt.time = status_creat2gpx(stat); // TODO transform to UTC and GPX format
 		  wpt.lat = latlon[0];
 		  wpt.lon = latlon[1];
@@ -303,11 +303,11 @@ void gpx_export_user_timeline(struct timeline* timeline, FILE *f, int append){
 		  for(i = 0; i < timeline->statcnt; i++) {
 			// unless already done or unidentifiable
 			
-			if(!b_done[i] && timeline->statuses[i]->id) {
+			if(!b_done[i] && timeline->statuses[i]->user) {
 			      if(!uid) {
 			      // if we have not fixed a user yet
 				    if(timeline->statuses[i]->geoloc) {
-					  uid = timeline->statuses[i]->id;
+					  uid = timeline->statuses[i]->user;
 					  f_track = open_memstream(&b_track, &size_track);
 					  gpx_append_user_track(f_track, uid);
 					  gpx_start_trkseg(f_track, 0); 
@@ -318,7 +318,7 @@ void gpx_export_user_timeline(struct timeline* timeline, FILE *f, int append){
 					  continue; // to next entry
 				    }
 			      } 
-			      if (!strcmp(uid, timeline->statuses[i]->id)) {
+			      if (!strcmp(uid, timeline->statuses[i]->user)) {
 				    if(timeline->statuses[i]->geoloc) {
 					  stat_fprint(stdout, timeline->statuses[i]);
 					  append_status_gpx(f_track, timeline->statuses[i]);
