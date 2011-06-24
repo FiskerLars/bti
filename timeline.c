@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "bti.h"
 #include "timeline.h"
@@ -96,14 +97,35 @@ static int statcmp(struct status* a, struct status* b) {
 /** todo: transfrm to UTC
  */
 static char* status_creat2gpx(struct status* stat) {
+      // to do: gettime(stat->created)
       return strdup(stat->created);
 }
-static char* status_lat2gpx(struct status* stat) {
-      return strdup(stat->geoloc);
+
+
+#define COORDSTART "-0123456789"
+#define COORDCHAR "-0123456789"
+static char** status_geoloc2latlon(struct status* stat) {
+      char* lat = 0;
+      char* lon = 0;
+      char** latlon = malloc(2*sizeof(char*));
+      if(stat && stat->geoloc) {
+	    char* s = stat->geoloc;
+	    while(*s && (isspace(*s) || (0 == strchr(COORDSTART, *s)))) 
+		  s++;
+	    lat = s;
+	    while(*s && (!isspace(*s) || (0 != strchr(COORDCHAR, *s)))) 
+		  s++;
+	    latlon[0] = strndup(lat, s-lat);
+	    while(*s && (isspace(*s) || (0 == strchr(COORDSTART, *s)))) 
+		  s++;
+	    lon = s;
+	    while(*s && (!isspace(*s) || (0 != strchr(COORDCHAR, *s)))) 
+		  s++;
+	    latlon[1] = strndup(lon, s-lon);
+      }
+      return latlon;
 }
-static char* status_lon2gpx(struct status* stat) {
-      return strdup(stat->geoloc);
-}
+
 
 int stat_fprint(FILE* f, struct status* stat) {
       int n = 0;
@@ -161,19 +183,25 @@ void tl_append_status(struct timeline* tl, struct status* stat){
 static FILE* append_status_gpx(FILE* f, struct status* stat) {
       struct gpx_wpt wpt = {0};
       if(stat->geoloc) {
-	    wpt.desc = stat->text; 
-	    wpt.name = stat->user;
-	    wpt.time = status_creat2gpx(stat); // TODO transform to UTC and GPX format
-	    wpt.lat = status_lat2gpx(stat);
-	    wpt.lon = status_lon2gpx(stat);
-	    wpt.src = "microblog"; // TODO put in name of blog/source 
-	    // wpt.link TODO have status link
-	    // status->id
-	    
-	    f = gpx_append_trackpt(f, &wpt);
-	    free(wpt.time);
-	    free(wpt.lat);
-	    free(wpt.lon);
+	    char **latlon = status_geoloc2latlon(stat);
+	    if (latlon) {
+		  wpt.desc = stat->text; 
+		  wpt.name = stat->user;
+		  wpt.time = status_creat2gpx(stat); // TODO transform to UTC and GPX format
+		  wpt.lat = latlon[0];
+		  wpt.lon = latlon[1];
+		  free(latlon);
+		  wpt.src = "microblog"; // TODO put in name of blog/source 
+		  // wpt.link TODO have status link
+		  // status->id
+		  
+		  f = gpx_append_trackpt(f, &wpt);
+		  free(wpt.time);
+		  free(wpt.lat);
+		  free(wpt.lon);
+	    } else {
+		  // ERROR unparsable geoloc
+	    }
       } else {
 	    // ERROR, no trkpt w/o geolocation
 	    // todo: derive from location??
