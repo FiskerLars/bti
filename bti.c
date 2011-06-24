@@ -326,6 +326,9 @@ static void parse_statuses(struct session *session,
       current = current->xmlChildrenNode;
       while (current != NULL) {
 		if (current->type == XML_ELEMENT_NODE) {
+			if (!xmlStrcmp(current->name, (const xmlChar *)"retweeted_status"))
+			      return parse_statuses(session, doc, current);
+
 			if (!xmlStrcmp(current->name, (const xmlChar *)"created_at"))
 				created = xmlNodeListGetString(doc, current->xmlChildrenNode, 1);
 			if (!xmlStrcmp(current->name, (const xmlChar *)"text"))
@@ -349,15 +352,12 @@ static void parse_statuses(struct session *session,
 			}
 			if (!xmlStrcmp(current->name, (const xmlChar *)"geo"))
 			      {
-				    dbg("geo found:\n");
 				    xmlNodePtr geop = current->xmlChildrenNode;
 				    while (geop != NULL) {
-					  dbg("geopointname: %s\n", geop->name); 
 					  if(!xmlStrcmp(geop->name, (const xmlChar *)"point")) {
 						if(geoloc)
 						      xmlFree(geoloc);
 						geoloc = xmlNodeListGetString(doc, geop->xmlChildrenNode, 1);
-						dbg("found geoloc: %s----\n", geoloc);
 					  }		
 					  geop = geop->next;
 				    }
@@ -430,7 +430,7 @@ static void parse_timeline(char *document, struct session *session)
 	current = current->xmlChildrenNode;
 	while (current != NULL) {
 		if ((!xmlStrcmp(current->name, (const xmlChar *)"status")))
-			parse_statuses(session, doc, current);
+		      parse_statuses(session, doc, current);
 		current = current->next;
 	}
 	//	tl_fprint(stdout, session->tl);
