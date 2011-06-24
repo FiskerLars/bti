@@ -6,6 +6,10 @@ bin_SCRIPTS = \
 
 bti_SOURCES = \
 	bti.h \
+	timeline.h \
+	timeline.c \
+	gpx.h \
+	gpx.c \
 	config.c \
 	bti.c
 

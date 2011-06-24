@@ -69,6 +69,9 @@ struct session {
 	enum action action;
 	void *readline_handle;
 	char *(*readline)(const char *);
+
+      struct timeline* tl;
+      char *gpx_logfile;
 };
 
 struct bti_curl_buffer {

@@ -40,7 +40,9 @@
 #include <termios.h>
 #include <dlfcn.h>
 #include <oauth.h>
+
 #include "bti.h"
+#include "timeline.h" 
 
 #define zalloc(size)	calloc(size, 1)
 
@@ -70,6 +72,7 @@ static void display_help(void)
 		"  --proxy PROXY:PORT\n"
 		"  --host HOST\n"
 		"  --logfile logfile\n"
+		"  --gpxlogfile logfile.gpx\n"
 		"  --config configfile\n"
 		"  --replyto ID\n"
 		"  --retweet ID\n"
@@ -88,6 +91,7 @@ static void display_version(void)
 {
 	fprintf(stdout, "bti - version %s\n", VERSION);
 }
+
 
 static char *get_string(const char *name)
 {
@@ -286,6 +290,8 @@ static CURL *curl_init(void)
 	return curl;
 }
 
+
+
 /* The final place data is sent to the screen/pty/tty */
 static void bti_output_line(struct session *session, xmlChar *user,
 			    xmlChar *id, xmlChar *created, xmlChar *text)
@@ -307,16 +313,18 @@ static void bti_output_geoloc_line(xmlChar* location) {
 static void parse_statuses(struct session *session,
 			   xmlDocPtr doc, xmlNodePtr current)
 {
-	xmlChar *text = NULL;
-	xmlChar *user = NULL;
-	xmlChar *created = NULL;
-	xmlChar *id = NULL;
-	xmlChar *location = NULL;
-	xmlChar *geoloc = NULL;
-	xmlNodePtr userinfo;
-
-	current = current->xmlChildrenNode;
-	while (current != NULL) {
+      struct status *status;
+      xmlChar *text = NULL;
+      xmlChar *user = NULL;
+      xmlChar *created = NULL;
+      xmlChar *id = NULL;
+      xmlChar *location = NULL;
+      xmlChar *geoloc = NULL;
+      xmlNodePtr userinfo;
+      
+    
+      current = current->xmlChildrenNode;
+      while (current != NULL) {
 		if (current->type == XML_ELEMENT_NODE) {
 			if (!xmlStrcmp(current->name, (const xmlChar *)"created_at"))
 				created = xmlNodeListGetString(doc, current->xmlChildrenNode, 1);
@@ -359,40 +367,47 @@ static void parse_statuses(struct session *session,
 				    dbg("coordinates: %s\n---coordinates---\n", xmlNodeListGetString(doc, current->xmlChildrenNode, 1));
 			      }
 
-			// output 
-			if (user && text && created && id) {
-				bti_output_line(session, user, id,
-						created, text);
-				xmlFree(user);
-				xmlFree(text);
-				xmlFree(created);
-				xmlFree(id);
-				user = NULL;
-				text = NULL;
-				created = NULL;
-				id = NULL;
-			} 
-			if (location) {
-			      bti_output_location_line(location);
-			      xmlFree(location);
-			      location = 0;
-			}
-			if (geoloc) {
-			      bti_output_geoloc_line(geoloc);
-			      xmlFree(geoloc);
-			      geoloc = 0;
-			}
 		}
 		current = current->next;
-	}
+      } 
+      // status parse finished
+      // store status in timeline
+      if(session->tl) {
+	    struct status* status = new_status(text, user, created,
+					       id, location, geoloc);
+	    if(status) tl_append_status(session->tl, status);
+      }
+      // output 
+      if (user && text && created && id) {
+	    bti_output_line(session, user, id,
+			    created, text);
+      } 
+      if (location) {
+	    bti_output_location_line(location);
+      }
+      if (geoloc) {
+	    bti_output_geoloc_line(geoloc);
+      }
+      // clean up
+      if (user) xmlFree(user);
+      if (text) xmlFree(text);
+      if (created) xmlFree(created);
+      if (id) xmlFree(id);
+      if (location) xmlFree(location);
+      if (geoloc) xmlFree(geoloc);
 
-	return;
+      return;
 }
+
+
 
 static void parse_timeline(char *document, struct session *session)
 {
 	xmlDocPtr doc;
 	xmlNodePtr current;
+
+	if(!session->tl) 
+	      session->tl = new_timeline();
 
 	doc = xmlReadMemory(document, strlen(document), "timeline.xml",
 			    NULL, XML_PARSE_NOERROR);
@@ -418,6 +433,7 @@ static void parse_timeline(char *document, struct session *session)
 			parse_statuses(session, doc, current);
 		current = current->next;
 	}
+	//	tl_fprint(stdout, session->tl);
 	xmlFreeDoc(doc);
 
 	return;
@@ -868,6 +884,19 @@ static void log_session(struct session *session, int retval)
 	fclose(log_file);
 }
 
+
+static void gpx_logging(struct session* session){
+      FILE* f;
+      if (session && session->gpx_logfile && session->tl) {
+	    f = fopen(session->gpx_logfile, "w+");
+	    if(f) {
+		  gpx_export_user_timeline(session->tl, f, 0);
+		  fclose(f);
+	    } else 
+		  fprintf(stderr, "Could not open %s for w+\n", session->gpx_logfile);
+      }
+}
+
 static char *get_string_from_stdin(void)
 {
 	char *temp;
@@ -1188,6 +1217,7 @@ int main(int argc, char *argv[], char *envp[])
 		{ "user", 1, NULL, 'u' },
 		{ "group", 1, NULL, 'G' },
 		{ "logfile", 1, NULL, 'L' },
+		{ "gpxlogfile", 1, NULL, 'l'},
 		{ "shrink-urls", 0, NULL, 's' },
 		{ "help", 0, NULL, 'h' },
 		{ "bash", 0, NULL, 'b' },
@@ -1290,6 +1320,10 @@ int main(int argc, char *argv[], char *envp[])
 			cli_session->replyto = strdup(optarg);
 			dbg("in_reply_to_status_id = %s\n", cli_session->replyto);
 			break;
+		case 'l': 
+		      cli_session->gpx_logfile = strdup(optarg);
+		      dbg("gpxlogfile = %s\n", cli_session->gpx_logfile);
+		      break;
 		case 'w':
 			cli_session->retweet = strdup(optarg);
 			dbg("Retweet ID = %s\n", cli_session->retweet);
@@ -1553,6 +1587,7 @@ int main(int argc, char *argv[], char *envp[])
 		fprintf(stderr, "operation failed\n");
 
 	log_session(session, retval);
+	gpx_logging(session);
 exit:
 	session_readline_cleanup(session);
 	session_free(session);

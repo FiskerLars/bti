@@ -289,6 +289,19 @@ static int logfile_cpy(struct session *a, struct session* b)
       return session_string(&b->logfile, a->logfile);
 }
 
+static int gpxlogfile_callback(struct session *session, char *value)
+{
+	return session_string(&session->gpx_logfile, value);
+}
+static int gpxlogfile_defined(struct session * session) 
+{
+      return session->gpx_logfile != 0;
+}
+static int gpxlogfile_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->gpx_logfile, a->gpx_logfile);
+}
+
 static int replyto_callback(struct session *session, char *value)
 {
 	return session_string(&session->replyto, value);
@@ -428,6 +441,7 @@ static struct config_function config_table[] = {
       { "action", action_callback, action_defined, action_cpy },
       { "verbose", verbose_callback, verbose_defined, verbose_cpy },
       { "shrink-urls", shrink_urls_callback, shrink_urls_defined, shrink_urls_cpy },
+      {"gpxlogfile", gpxlogfile_callback, gpxlogfile_defined, gpxlogfile_cpy},
       { NULL, NULL, NULL, NULL }
 };
 
