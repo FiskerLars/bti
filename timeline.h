@@ -30,3 +30,6 @@ void tl_append_status(struct timeline* tl, struct status* stat);
 int tl_fprint(FILE* f, struct timeline* tl);
 
 void gpx_export_user_timeline(struct timeline* timeline, FILE *f, int append);
+struct timeline* timeline_parse(char *document);
+struct timeline*  timeline_fread(FILE* f);
+

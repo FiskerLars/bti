@@ -37,6 +37,8 @@ enum action {
 	ACTION_UNKNOWN = 64
 };
 
+/** Descibe a user session with microblogging service. Remember to modify config.c if you change something here.
+ */
 struct session {
 	char *password;
 	char *account;
@@ -49,7 +51,8 @@ struct session {
 	char *time;
 	char *homedir;
 	char *logfile;
-	char *user;
+      char *tldumpfile;
+      char *user;
 	char *group;
 	char *hosturl;
 	char *hostname;

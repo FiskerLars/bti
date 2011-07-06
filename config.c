@@ -302,6 +302,20 @@ static int gpxlogfile_cpy(struct session *a, struct session* b)
       return session_string(&b->gpx_logfile, a->gpx_logfile);
 }
 
+static int tldumpfile_callback(struct session *session, char *value)
+{
+	return session_string(&session->tldumpfile, value);
+}
+static int tldumpfile_defined(struct session * session) 
+{
+      return session->tldumpfile != 0;
+}
+static int tldumpfile_cpy(struct session *a, struct session* b)
+{
+      return session_string(&b->tldumpfile, a->tldumpfile);
+}
+
+
 static int replyto_callback(struct session *session, char *value)
 {
 	return session_string(&session->replyto, value);
@@ -442,6 +456,7 @@ static struct config_function config_table[] = {
       { "verbose", verbose_callback, verbose_defined, verbose_cpy },
       { "shrink-urls", shrink_urls_callback, shrink_urls_defined, shrink_urls_cpy },
       {"gpxlogfile", gpxlogfile_callback, gpxlogfile_defined, gpxlogfile_cpy},
+      {"tldumpfile", tldumpfile_callback, tldumpfile_defined, tldumpfile_cpy},
       { NULL, NULL, NULL, NULL }
 };
 
@@ -571,6 +586,8 @@ void consolidate_config(struct session **accounts)
 		  accounts[1]->configfile = strdup(accounts[0]->configfile);
 	    if(!accounts[1]->proxy && accounts[0]->proxy)
 		  accounts[1]->proxy = strdup(accounts[0]->proxy);
+	    if(!accounts[1]->tldumpfile && accounts[0]->tldumpfile)
+		  accounts[1]->tldumpfile = strdup(accounts[0]->tldumpfile);
       // ??int interactive;
       }
 

@@ -54,7 +54,7 @@
 	} while (0)
 
 
-int debug;
+int debug = 0;
 
 static void display_help(void)
 {
@@ -72,6 +72,7 @@ static void display_help(void)
 		"  --proxy PROXY:PORT\n"
 		"  --host HOST\n"
 		"  --logfile logfile\n"
+		"  --tldumpfile xml dump file\n"
 		"  --gpxlogfile logfile.gpx\n"
 		"  --config configfile\n"
 		"  --replyto ID\n"
@@ -400,6 +401,16 @@ static void parse_statuses(struct session *session,
 }
 
 
+static int dump_timeline(char* doc, struct session* session){
+      int n = 0 ;
+      FILE* f = 0;
+      if(!doc || !session || !session->tldumpfile) return 0;
+      f = fopen(session->tldumpfile, "a");
+      if(!f) return n;
+      n = fwrite(doc, sizeof(char), strlen(doc), f);
+      fclose(f);
+      return n;
+}
 
 static void parse_timeline(char *document, struct session *session)
 {
@@ -408,6 +419,10 @@ static void parse_timeline(char *document, struct session *session)
 
 	if(!session->tl) 
 	      session->tl = new_timeline();
+
+	dbg("output dumpfile? %d\n", session->tldumpfile != 0);
+	if(session->tldumpfile)
+	      dump_timeline(document, session);
 
 	doc = xmlReadMemory(document, strlen(document), "timeline.xml",
 			    NULL, XML_PARSE_NOERROR);
@@ -422,7 +437,7 @@ static void parse_timeline(char *document, struct session *session)
 	}
 
 	if (xmlStrcmp(current->name, (const xmlChar *) "statuses")) {
-		fprintf(stderr, "unexpected document type\n");
+	      fprintf(stderr, "__func__: unexpected document type, expected <statuses>, found %s\n", current->name);
 		xmlFreeDoc(doc);
 		return;
 	}
@@ -731,15 +746,15 @@ static int send_request(struct session *session)
 					return -EINVAL;
 				}
 
-				if (xmlStrcmp(current->name, (const xmlChar *)"status")) {
-					fprintf(stderr, "unexpected document type\n");
-					xmlFreeDoc(doc);
-					return -EINVAL;
+				if (xmlStrcmp(current->name, (const xmlChar *)"statuses")) { // lf: changed from status which seemed strange here
+				      fprintf(stderr, "%s:%d unexpected document type, expected <statuses> found %s\n", __FILE__, __LINE__, current->name);
+				      xmlFreeDoc(doc);
+				      return -EINVAL;
 				}
 
 				xmlFreeDoc(doc);
 			}
-		}
+		} // end !dry_run
 
 		curl_easy_cleanup(curl);
 		if (session->action == ACTION_UPDATE)
@@ -838,15 +853,25 @@ static void log_session(struct session *session, int retval)
 	if (!session->logfile)
 		return;
 
-	filename = alloca(strlen(session->homedir) +
-			  strlen(session->logfile) + 3);
+	
+	    
 
-	sprintf(filename, "%s/%s", session->homedir, session->logfile);
+	if(session->logfile[0] != '/') {
+	      filename = alloca(strlen(session->homedir) +
+				strlen(session->logfile) + 3);
+	      sprintf(filename, "%s/%s", session->homedir, session->logfile);
+	}
+	else {
+	      filename = alloca(strlen(session->logfile) + 2);
+	      sprintf(filename, "%s", session->logfile);
+	}	      
 
 	log_file = fopen(filename, "a+");
-	if (log_file == NULL)
-		return;
-
+	if (log_file == NULL) {
+	      fprintf(stderr, "%s:%d could not open %s for logging\n", __FILE__, __LINE__, filename);
+	      return;
+	}
+	
 	switch (session->action) {
 	case ACTION_UPDATE:
 		if (retval)
@@ -1217,6 +1242,7 @@ int main(int argc, char *argv[], char *envp[])
 		{ "user", 1, NULL, 'u' },
 		{ "group", 1, NULL, 'G' },
 		{ "logfile", 1, NULL, 'L' },
+		{ "tldumpfile", 1, NULL, 't'},
 		{ "gpxlogfile", 1, NULL, 'l'},
 		{ "shrink-urls", 0, NULL, 's' },
 		{ "help", 0, NULL, 'h' },
@@ -1292,16 +1318,18 @@ int main(int argc, char *argv[], char *envp[])
 
 	cli_session = session_alloc();
 
+	dbg("argc = %d\n", argc);
 	while (1) {
 		option = getopt_long_only(argc, argv,
-					  "dp:P:H:a:A:u:c:hg:G:sr:nVvw:",
+					  "dp:P:H:a:A:u:c:t:hg:G:sr:nVvw:",
 					  options, NULL);
+		dbg("option = '%c'\n", option);
 		if (option == -1)
 			break;
 		switch (option) {
 		case 'd':
-			debug = 1;
-			break;
+		      debug = 1;
+		      break;
 		case 'V':
 			cli_session->verbose = 1;
 			break;
@@ -1341,7 +1369,8 @@ int main(int argc, char *argv[], char *envp[])
 			dbg("proxy = %s\n", cli_session->proxy);
 			break;
 		case 'A':
-			if (strcasecmp(optarg, "update") == 0)
+		      dbg("action = %s\n", optarg);
+		      if (strcasecmp(optarg, "update") == 0)
 				cli_session->action = ACTION_UPDATE;
 			else if (strcasecmp(optarg, "friends") == 0)
 				cli_session->action = ACTION_FRIENDS;
@@ -1381,6 +1410,12 @@ int main(int argc, char *argv[], char *envp[])
 		case 's':
 			cli_session->shrink_urls = 1;
 			break;
+		case 't': 
+		      if(cli_session->tldumpfile)
+			    free(cli_session->tldumpfile);
+		      cli_session->tldumpfile = strdup(optarg);
+		      dbg("tldumpfile = %s\n", cli_session->tldumpfile);
+		      break;
 		case 'H':
 			if (cli_session->hosturl)
 				free(cli_session->hosturl);
